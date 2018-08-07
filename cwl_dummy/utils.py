@@ -2,11 +2,17 @@
 
 
 import re
+import textwrap
+import traceback
 from typing import Any, List, Mapping, Sequence, TypeVar, Union, overload
 
 
 T = TypeVar("T")
 K = TypeVar("K")
+
+
+class UnhandledCwlError(Exception):
+    pass
 
 
 def mapping_to_sequence(
@@ -80,3 +86,26 @@ def ensure_list(x: T) -> List[T]:
     if isinstance(x, list):
         return x
     return [x]
+
+
+def format_error(e, filename) -> str:
+    lines = [
+        "=" * 32 + " Unhandled CWL " + "=" * 32,
+        f"  Could not handle CWL file at {filename}",
+        f"  You must fix the .dummy file yourself, or the workflow will not run.",
+        f"  Reason for failure:",
+        f"    {e!s}"
+    ]
+    while hasattr(e, "__cause__") and e.__cause__ is not None:
+        e = e.__cause__
+        lines.append("  because:")
+        if isinstance(e, UnhandledCwlError):
+            lines.append(f"    {e!s}")
+        else:
+            lines.append(f"    {traceback.format_exception_only(type(e), e)}")
+    if hasattr(e, "__context__") and e.__context__ is not None:
+        e = e.__context__
+        lines.append(f"  caused by the following exception:")
+        lines.append(textwrap.indent("".join(traceback.format_exception(type(e), e, e.__traceback__)).rstrip(), "    "))
+    lines.append("=" * 79)
+    return "\n".join(lines)

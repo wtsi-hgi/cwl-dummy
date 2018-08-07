@@ -4,17 +4,15 @@
 import argparse
 import sys
 import textwrap
-import traceback
 # noinspection PyUnresolvedReferences
 from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar, overload
 
 import ruamel.yaml
 
-from cwl_dummy.utils import ensure_list, ensure_sequence_form, mapping_to_sequence, strip_references
-
-
-class UnhandledCwlError(Exception):
-    pass
+from cwl_dummy.utils import (
+    UnhandledCwlError, ensure_list, ensure_sequence_form, format_error, mapping_to_sequence,
+    strip_references
+)
 
 
 def main():
@@ -34,28 +32,19 @@ def mock_file(filename: str) -> None:
     if cwl.get("cwlVersion") != "v1.0":
         raise Exception("can't process CWL versions other than v1.0")
 
+    top_comment = ""
     try:
         cwl = mock_document(cwl)
     except UnhandledCwlError as e:
-        print("=" * 32 + " Unhandled CWL " + "=" * 32)
-        print(f"  Could not handle CWL file at {filename}")
-        print(f"  You must create the .dummy file yourself, or the workflow will not run.")
-        print(f"  Reason for failure:")
-        print(f"    {e!s}")
-        while hasattr(e, "__cause__") and e.__cause__ is not None:
-            e = e.__cause__
-            print("  because:")
-            if isinstance(e, UnhandledCwlError):
-                print(f"    {e!s}")
-            else:
-                print(f"    {traceback.format_exception_only(type(e), e)}")
-        if hasattr(e, "__context__") and e.__context__ is not None:
-            e = e.__context__
-            print(f"  caused by the following exception:")
-            print(textwrap.indent("".join(traceback.format_exception(type(e), e, e.__traceback__)).rstrip(), "    "))
-        print("=" * 79)
+        err_str = format_error(e, filename)
+        print(err_str)
+        top_comment = textwrap.indent(err_str, "# ")
+        # Since most things mutate `cwl` in-place, we can carry on and
+        # write the file to make it easier to fix it by hand.
 
     with open(filename + ".dummy", "w") as f:
+        if top_comment:
+            f.write(top_comment + "\n")
         ruamel.yaml.round_trip_dump(cwl, f, default_flow_style=False)
 
     print(f"Wrote mocked file to {filename}.dummy")
