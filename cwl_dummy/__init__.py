@@ -197,7 +197,7 @@ def mock_command_line_tool(cwl):
             fi
         fi
     done
-    """))]
+    """)), "cwl_dummy_runner"]  # This is $0
     cwl["arguments"] = [MODE_SWITCH_FLAG, *output_dirs, MODE_SWITCH_FLAG, *output_files, MODE_SWITCH_FLAG]
 
     for arg in output_dirs + output_files:
