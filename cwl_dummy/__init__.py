@@ -137,6 +137,10 @@ def mock_command_line_tool(cwl):
     output_files = []
     output_dirs = []
     for output in ensure_sequence_form(cwl["outputs"]):
+        if "secondaryFiles" in output:
+            secondary_files = ensure_list(output["secondaryFiles"])
+            # FIXME: this is not correct!
+            output_files.extend(secondary_files)
         try:
             output_binding = output["outputBinding"]
         except KeyError:
@@ -149,26 +153,15 @@ def mock_command_line_tool(cwl):
                 if any(c in glob for c in "*?["):
                     # "may" because JS expressions aren't removed.
                     print(">>> Warning: glob may contain glob characters <<<")
-        if type_contains(output["type"], "File"):
-            if "secondaryFiles" in output:
-                secondary_files = ensure_list(output["secondaryFiles"])
-                # FIXME: this is not correct!
-                output_files.extend(secondary_files)
-            if "glob" in output_binding:
-                # FIXME: globs can contain glob characters
-                globs = ensure_list(output_binding["glob"])
-                for i, glob in enumerate(globs):
-                    globs[i] = glob.replace("*", "s").replace("?", "q")
-                output_files.extend(globs)
-        elif type_contains(output["type"], "Directory"):
-            if "glob" in output_binding:
-                # FIXME: globs can contain glob characters
-                globs = ensure_list(output_binding["glob"])
-                for i, glob in enumerate(globs):
-                    globs[i] = glob.replace("*", "s").replace("?", "q")
+            # FIXME: globs can contain glob characters
+            for i, glob in enumerate(globs):
+                globs[i] = glob.replace("*", "s").replace("?", "q")
+            if type_contains(output["type"], "Directory"):
                 output_dirs.extend(globs)
-        else:
-            pass  # ignore non-files
+            else:
+                if not type_contains(output["type"], "File"):
+                    print(">>> Warning: glob found, but output type does not allow globs <<<")
+                output_files.extend(globs)
 
     # This uses the following behaviour described in the CWL spec:
     #
