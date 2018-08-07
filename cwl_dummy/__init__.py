@@ -165,22 +165,47 @@ def mock_command_line_tool(cwl):
         else:
             pass  # ignore non-files
 
-    # FIXME: the quoting situation here is very broken
-    # If you use an expression like this in your CWL:
+    # This uses the following behaviour described in the CWL spec:
     #
-    #   $(inputs['abc']])
+    #     If the value of a field has no leading or trailing
+    #     non-whitespace characters around a parameter reference, the
+    #     effective value of the field becomes the value of the
+    #     referenced parameter, preserving the return type.
     #
-    # then shlex.quote will transform it into this:
+    # In other words, as long as we pass each expression as a separate
+    # argument, the CWL runner will quote them for us (and also expand
+    # them properly if the value is an array).
     #
-    #   '$(inputs['"'"'abc'"'"']])'
-    #
-    # so the CWL runner won't expand it and everything will break.
-    args = ["sleep 10"]
-    if output_dirs:
-        args.append("mkdir -p " + " ".join(map(attempt_to_quote, output_dirs)))
-    if output_files:
-        args.append("touch " + " ".join(map(attempt_to_quote, output_files)))
-    cwl["arguments"] = ["; ".join(args)]
+    # This is POSIX-compatible; see the pages for `touch` and `mkdir`:
+    # http://pubs.opengroup.org/onlinepubs/9699919799/utilities/touch.html
+    # http://pubs.opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
+    # and also (for "--" support):
+    # http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html#tag_12_02
+    cwl["arguments"] = ["""
+    sleep 10
+    mode=dir
+    for arg in "$@"; do
+        if [ "$mode" = dir ]; then
+            if [ "$arg" = -- ]; then
+                mode=file
+            else
+                mkdir -p -- "$arg"
+            fi
+        elif [ "$mode" = file ]; then
+            if [ "$arg" = -- ]; then
+                mode=none
+            else
+                touch -- "$arg"
+            fi
+        fi
+    done
+    """] + output_dirs + ["--"] + output_files + ["--"]
+
+    for arg in output_dirs + output_files:
+        if arg.count("$") > 1:
+            raise UnhandledCwlError(f"Multiple parameter references in field: {arg}")
+        if "$" in arg and (arg.strip()[0] != "$" or arg.strip()[-1] not in ")}"):
+            raise UnhandledCwlError(f"Leading or trailing characters in field with parameter reference: {arg}")
 
     return cwl
 
