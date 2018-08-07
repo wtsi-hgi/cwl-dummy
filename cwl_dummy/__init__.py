@@ -107,12 +107,15 @@ SAFE_REQUIREMENTS = {
 }
 
 
+# This must not contain any shell metacharacters (including spaces).
+MODE_SWITCH_FLAG = "cwl-dummy-mode-switch"
+
+
 def mock_command_line_tool(cwl):
     assert cwl["class"] == "CommandLineTool"
     assert all(x in cwl for x in {"inputs", "outputs"})
     if any(x in cwl for x in {"stdin", "stdout", "stderr"}):
         raise UnhandledCwlError("Cannot handle stdin/stdout/stderr references automatically")
-    cwl["baseCommand"] = ["sh", "-c"]
     for x in {"requirements", "hints"} & cwl.keys():
         seq = ensure_sequence_form(cwl[x], key_key="class")
         cwl[x] = [
@@ -163,25 +166,30 @@ def mock_command_line_tool(cwl):
     # http://pubs.opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
     # and also (for "--" support):
     # http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html#tag_12_02
-    cwl["arguments"] = ["""
+    cwl["baseCommand"] = ["sh", "-c", f"""
     sleep 10
-    mode=dir
+    mode=pre
     for arg in "$@"; do
-        if [ "$mode" = dir ]; then
-            if [ "$arg" = -- ]; then
+        if [ "$mode" = pre ]; then
+            if [ "$arg" = {MODE_SWITCH_FLAG} ]; then
+                mode=dir
+            fi
+        elif [ "$mode" = dir ]; then
+            if [ "$arg" = {MODE_SWITCH_FLAG} ]; then
                 mode=file
             else
                 mkdir -p -- "$arg"
             fi
         elif [ "$mode" = file ]; then
-            if [ "$arg" = -- ]; then
-                mode=none
+            if [ "$arg" = {MODE_SWITCH_FLAG} ]; then
+                mode=post
             else
                 touch -- "$arg"
             fi
         fi
     done
-    """] + output_dirs + ["--"] + output_files + ["--"]
+    """]
+    cwl["arguments"] = [MODE_SWITCH_FLAG, *output_dirs, MODE_SWITCH_FLAG, *output_files, MODE_SWITCH_FLAG]
 
     for arg in output_dirs + output_files:
         if arg.count("$") > 1:
