@@ -19,6 +19,7 @@ from cwl_dummy.utils import (
 class Arguments:
     filename: List[str]
     force: bool
+    force_broken: bool
 
 
 args: Arguments
@@ -28,7 +29,9 @@ def main():
     global args
     parser = argparse.ArgumentParser()
     parser.add_argument("filename", nargs="+", help="a Workflow or CommandLineTool to mock")
-    parser.add_argument("-f", "--force", action="store_true", help="write files even if they already exist")
+    parser.add_argument("-f", "--force", action="store_true", help="write processed files even if they already exist")
+    # Avoid overwriting files that have been fixed by hand.
+    parser.add_argument("--force-broken", action="store_true", help="write unhandled files even if they already exist")
     # The typeshed signature for parse_args currently does not account
     # for custom namespaces, so we have to cast to get typechecking.
     args = cast(Arguments, parser.parse_args(namespace=Arguments()))
@@ -56,7 +59,9 @@ def mock_file(filename: str) -> None:
         # write the file to make it easier to fix it by hand.
 
     outfilename = filename + ".dummy"
-    if pathlib.Path(outfilename).exists() and not args.force:
+    if top_comment and pathlib.Path(outfilename).exists() and not args.force_broken:
+        print(f"Not writing file because it already exists and could not be processed: {outfilename}")
+    elif pathlib.Path(outfilename).exists() and not args.force:
         print(f"Not writing file because it already exists: {outfilename}")
     else:
         with open(outfilename, "w") as f:
