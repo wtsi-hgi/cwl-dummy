@@ -7,7 +7,7 @@ import textwrap
 # noinspection PyUnresolvedReferences
 from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar, overload
 
-import ruamel.yaml
+import ruamel.yaml.scalarstring
 
 from cwl_dummy.utils import (
     UnhandledCwlError, ensure_list, ensure_sequence_form, format_error, mapping_to_sequence,
@@ -27,7 +27,7 @@ def mock_file(filename: str) -> None:
     print(f"Mocking file {filename}")
 
     with open(filename, "r") as f:
-        cwl = ruamel.yaml.safe_load(f)
+        cwl = ruamel.yaml.round_trip_load(f)
 
     if cwl.get("cwlVersion") != "v1.0":
         raise Exception("can't process CWL versions other than v1.0")
@@ -159,7 +159,7 @@ def mock_command_line_tool(cwl):
     # http://pubs.opengroup.org/onlinepubs/9699919799/utilities/mkdir.html
     # and also (for "--" support):
     # http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html#tag_12_02
-    cwl["baseCommand"] = ["sh", "-c", f"""
+    cwl["baseCommand"] = ["sh", "-c", ruamel.yaml.scalarstring.PreservedScalarString(textwrap.dedent(f"""\
     sleep 10
     mode=pre
     for arg in "$@"; do
@@ -181,7 +181,7 @@ def mock_command_line_tool(cwl):
             fi
         fi
     done
-    """]
+    """))]
     cwl["arguments"] = [MODE_SWITCH_FLAG, *output_dirs, MODE_SWITCH_FLAG, *output_files, MODE_SWITCH_FLAG]
 
     for arg in output_dirs + output_files:
