@@ -46,7 +46,7 @@ def mock_file(filename: str) -> None:
         cwl = ruamel.yaml.round_trip_load(f)
 
     if cwl.get("cwlVersion") != "v1.0":
-        raise Exception("can't process CWL versions other than v1.0")
+        raise UnhandledCwlError("Can't process CWL versions other than v1.0")
 
     top_comment = ""
     try:
