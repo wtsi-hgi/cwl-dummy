@@ -154,11 +154,11 @@ def mock_command_line_tool(cwl):
                 output_files.extend(secondary_files)
             if "glob" in output_binding:
                 # FIXME: globs can contain glob characters
-                output_files.append(output_binding["glob"])
+                output_files.extend(ensure_list(output_binding["glob"]))
         elif typ == "Directory":
             if "glob" in output_binding:
                 # FIXME: globs can contain glob characters
-                output_dirs.append(output_binding["glob"])
+                output_dirs.extend(ensure_list(output_binding["glob"]))
         else:
             pass  # ignore non-files
 
