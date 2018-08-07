@@ -21,9 +21,10 @@ class UnhandledCwlError(Exception):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("filename", help="a Workflow or CommandLineTool to mock")
+    parser.add_argument("filename", nargs="+", help="a Workflow or CommandLineTool to mock")
     args = parser.parse_args()
-    mock_file(args.filename)
+    for filename in args.filename:
+        mock_file(filename)
 
 
 def mock_file(filename: str) -> None:
