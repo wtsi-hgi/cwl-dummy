@@ -2,10 +2,11 @@
 
 
 import argparse
+import pathlib
 import sys
 import textwrap
 # noinspection PyUnresolvedReferences
-from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar, overload
+from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar, cast, overload
 
 import ruamel.yaml.scalarstring
 
@@ -15,16 +16,28 @@ from cwl_dummy.utils import (
 )
 
 
+class Arguments:
+    filename: List[str]
+    force: bool
+
+
+args: Arguments
+
+
 def main():
+    global args
     parser = argparse.ArgumentParser()
     parser.add_argument("filename", nargs="+", help="a Workflow or CommandLineTool to mock")
-    args = parser.parse_args()
+    parser.add_argument("-f", "--force", action="store_true", help="write files even if they already exist")
+    # The typeshed signature for parse_args currently does not account
+    # for custom namespaces, so we have to cast to get typechecking.
+    args = cast(Arguments, parser.parse_args(namespace=Arguments()))
     for filename in args.filename:
         mock_file(filename)
 
 
 def mock_file(filename: str) -> None:
-    print(f"Mocking file {filename}")
+    print(f"Mocking file: {filename}")
 
     with open(filename, "r") as f:
         cwl = ruamel.yaml.round_trip_load(f)
@@ -42,12 +55,15 @@ def mock_file(filename: str) -> None:
         # Since most things mutate `cwl` in-place, we can carry on and
         # write the file to make it easier to fix it by hand.
 
-    with open(filename + ".dummy", "w") as f:
-        if top_comment:
-            f.write(top_comment + "\n")
-        ruamel.yaml.round_trip_dump(cwl, f, default_flow_style=False)
-
-    print(f"Wrote mocked file to {filename}.dummy")
+    outfilename = filename + ".dummy"
+    if pathlib.Path(outfilename).exists() and not args.force:
+        print(f"Not writing file because it already exists: {outfilename}")
+    else:
+        with open(outfilename, "w") as f:
+            if top_comment:
+                f.write(top_comment + "\n")
+            ruamel.yaml.round_trip_dump(cwl, f, default_flow_style=False)
+        print(f"Wrote mocked file: {outfilename}")
 
 
 def mock_document(cwl):
