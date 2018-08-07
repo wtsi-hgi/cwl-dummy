@@ -115,16 +115,16 @@ MODE_SWITCH_FLAG = "cwl-dummy-mode-switch"
 def mock_command_line_tool(cwl):
     assert cwl["class"] == "CommandLineTool"
     assert all(x in cwl for x in {"inputs", "outputs"})
-    if any(x in cwl for x in {"stdin", "stdout", "stderr"}):
-        raise UnhandledCwlError("Cannot handle stdin/stdout/stderr references automatically")
     for x in {"requirements", "hints"} & cwl.keys():
         seq = ensure_sequence_form(cwl[x], key_key="class")
-        cwl[x] = [
-            req for req in seq if req["class"] in SAFE_REQUIREMENTS
-        ]
         for req in seq:
             if ":" in req["class"] or "#" in req["class"]:
                 print(f">>> Warning: unknown {x[:-1]} {req['class']!r} <<<")
+        cwl[x] = [
+            req for req in seq if req["class"] in SAFE_REQUIREMENTS
+        ]
+    if any(x in cwl for x in {"stdin", "stdout", "stderr"}):
+        raise UnhandledCwlError("Cannot handle stdin/stdout/stderr references automatically")
 
     cwl["inputs"] = ensure_sequence_form(cwl["inputs"])
     cwl["outputs"] = ensure_sequence_form(cwl["outputs"])
