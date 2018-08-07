@@ -2,9 +2,10 @@
 
 
 import re
-from typing import Any, List, Mapping, Sequence, TypeVar, Union
+from typing import Any, List, Mapping, Sequence, TypeVar, Union, overload
 
 
+T = TypeVar("T")
 K = TypeVar("K")
 
 
@@ -69,3 +70,13 @@ def strip_references(s: str) -> str:
     # spec -- although it's represented as a BNF grammar, it doesn't
     # recurse, so it can be written as a regular expression.
     return re.sub(r"""\$\(\w+(\.\w+|\['([^']|\\')*'\]|\["([^"]|\\")*"\]|\[\d+\])*\)""", "", s)
+
+
+@overload
+def ensure_list(x: List[T]) -> List[T]: ...
+
+
+def ensure_list(x: T) -> List[T]:
+    if isinstance(x, list):
+        return x
+    return [x]

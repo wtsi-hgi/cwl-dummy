@@ -2,7 +2,6 @@
 
 
 import argparse
-import shlex
 import sys
 import textwrap
 import traceback
@@ -11,10 +10,7 @@ from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar,
 
 import ruamel.yaml
 
-from cwl_dummy.utils import ensure_sequence_form, mapping_to_sequence, strip_references
-
-
-T = TypeVar("T")
+from cwl_dummy.utils import ensure_list, ensure_sequence_form, mapping_to_sequence, strip_references
 
 
 class UnhandledCwlError(Exception):
@@ -235,25 +231,6 @@ def type_contains(typ, needle):
     if typ["type"] == "enum":
         return needle.get("type") == "enum" and set(needle["symbols"]) == set(typ["symbols"])
     raise TypeError(f"Invalid (or unknown) type: {typ!r}")
-
-
-def attempt_to_quote(s: str) -> str:
-    """Try to quote a string for use in `arguments`."""
-    if "$(" not in s and "${" not in s:
-        # easy case -- it definitely doesn't contain any expression
-        return shlex.quote(s)
-    # TODO
-    return "'" + s + "'"
-
-
-@overload
-def ensure_list(x: List[T]) -> List[T]: ...
-
-
-def ensure_list(x: T) -> List[T]:
-    if isinstance(x, list):
-        return x
-    return [x]
 
 
 if __name__ == "__main__":
