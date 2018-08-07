@@ -230,45 +230,6 @@ def attempt_to_quote(s: str) -> str:
     return "'" + s + "'"
 
 
-def normalise_type(frag):
-    assert False, "do not use this function"
-    # TODO: this is very bad, we should use schema-salad for this
-    # (which would also take care of $import)
-    # Nevertheless, this is actually more capable than schema-salad --
-    # "File[][]" will work here, but not in cwltool.
-    assert frag, "zero-length type not allowed"
-    if isinstance(frag, str):
-        if frag in {"stdout", "stderr"}:
-            raise ValueError("can't handle stdout or stderr types")
-        if frag.endswith("?"):
-            return normalise_type([frag[:-1], "null"])
-        if frag.endswith("[]"):
-            return {
-                "type": "array",
-                "items": normalise_type(frag[:-2]),
-            }
-        return frag
-    if isinstance(frag, MutableSequence):
-        ts = []
-        for type in frag:
-            ntype = normalise_type(type)
-            if isinstance(ntype, list):
-                ts.extend(ntype)
-            elif ntype not in ts:
-                ts.append(ntype)
-        return ts
-    assert isinstance(frag, MutableMapping)
-    if "inputBinding" in frag:
-        frag.pop("inputBinding")
-    # Recurse over arrays
-    if "items" in frag:
-        frag["items"] = [normalise_type(t) for t in frag["items"]]
-    # Recurse over records
-    if "fields" in frag:
-        frag["fields"] = [normalise_type(t) for t in frag["fields"]]
-    return frag
-
-
 @overload
 def ensure_list(x: List[T]) -> List[T]: ...
 
