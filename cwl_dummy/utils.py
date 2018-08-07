@@ -1,6 +1,7 @@
 """Awful junk that doesn't fit anywhere else."""
 
 
+import re
 from typing import Any, List, Mapping, Sequence, TypeVar, Union
 
 
@@ -57,3 +58,14 @@ def ensure_sequence_form(mapping_or_sequence: Union[Mapping, Sequence], **kwargs
         return mapping_to_sequence(mapping_or_sequence, **kwargs)
     assert isinstance(mapping_or_sequence, Sequence)
     return mapping_or_sequence
+
+
+def strip_references(s: str) -> str:
+    """Remove parameter references from a string.
+
+    NOTE: JavaScript expressions are not necessarily removed.
+    """
+    # This is lifted from section 3.4 "Parameter references" of the CWL
+    # spec -- although it's represented as a BNF grammar, it doesn't
+    # recurse, so it can be written as a regular expression.
+    return re.sub(r"""\$\(\w+(\.\w+|\['([^']|\\')*'\]|\["([^"]|\\")*"\]|\[\d+\])*\)""", "", s)

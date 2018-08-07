@@ -11,7 +11,7 @@ from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar,
 
 import ruamel.yaml
 
-from cwl_dummy.utils import ensure_sequence_form, mapping_to_sequence
+from cwl_dummy.utils import ensure_sequence_form, mapping_to_sequence, strip_references
 
 
 T = TypeVar("T")
@@ -123,7 +123,7 @@ def mock_command_line_tool(cwl):
         ]
         for req in seq:
             if ":" in req["class"] or "#" in req["class"]:
-                print(f">>> Warning: unknown requirement/hint {req['class']!r} <<<")
+                print(f">>> Warning: unknown {x[:-1]} {req['class']!r} <<<")
 
     cwl["inputs"] = ensure_sequence_form(cwl["inputs"])
     cwl["outputs"] = ensure_sequence_form(cwl["outputs"])
@@ -135,6 +135,14 @@ def mock_command_line_tool(cwl):
             output_binding = output["outputBinding"]
         except KeyError:
             raise UnhandledCwlError("CommandLineTool has output without outputBinding (does it use cwl.output.json?)") from None
+        if output_binding.get("loadContents", False):
+            print(">>> Warning: output file contents may be checked <<<")
+        if "glob" in output_binding:
+            globs = ensure_list(output_binding["glob"])
+            for glob in (strip_references(g) for g in globs):
+                if any(c in glob for c in "*?["):
+                    # "may" because JS expressions aren't removed.
+                    print(">>> Warning: glob may contain glob characters <<<")
         if type_contains(output["type"], "File"):
             if "secondaryFiles" in output:
                 secondary_files = ensure_list(output["secondaryFiles"])
