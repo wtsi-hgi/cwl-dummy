@@ -54,9 +54,8 @@ def mock_file(filename: str) -> None:
         if hasattr(e, "__context__") and e.__context__ is not None:
             e = e.__context__
             print(f"  caused by the following exception:")
-            print(textwrap.indent("".join(filter(None, traceback.format_exception(type(e), e, e.__traceback__))).rstrip(), "    "))
+            print(textwrap.indent("".join(traceback.format_exception(type(e), e, e.__traceback__)).rstrip(), "    "))
         print("=" * 79)
-        raise
 
     with open(filename + ".dummy", "w") as f:
         ruamel.yaml.round_trip_dump(cwl, f, default_flow_style=False)
@@ -72,7 +71,7 @@ def mock_document(cwl):
     elif cls == "CommandLineTool":
         cwl = mock_command_line_tool(cwl)
     elif cls == "ExpressionTool":
-        print(f"ignoring ExpressionTool")
+        print(">>> Warning: ignoring ExpressionTool <<<")
     else:
         raise UnhandledCwlError(f"Unknown document class {cls!r}")
     return cwl
@@ -92,12 +91,7 @@ def mock_workflow(cwl):
             # NB: CWL workflows are not allowed to refer to themselves
             # (even indirectly), so we don't need to keep track of which
             # files we've seen.
-            try:
-                mock_file(step["run"])
-            except UnhandledCwlError:
-                # a warning has already been printed by mock_file, and
-                # we need to check the other steps
-                pass
+            mock_file(step["run"])
             step["run"] += ".dummy"
         else:
             # probably a nested CWL document
@@ -156,11 +150,14 @@ def mock_command_line_tool(cwl):
         if typ == "File" or isinstance(type, dict) and typ.get("items") == "File":
             if "secondaryFiles" in output:
                 secondary_files = ensure_list(output["secondaryFiles"])
+                # FIXME: this is not correct!
                 output_files.extend(secondary_files)
             if "glob" in output_binding:
+                # FIXME: globs can contain glob characters
                 output_files.append(output_binding["glob"])
         elif typ == "Directory":
             if "glob" in output_binding:
+                # FIXME: globs can contain glob characters
                 output_dirs.append(output_binding["glob"])
         else:
             pass  # ignore non-files
@@ -222,6 +219,8 @@ def attempt_to_quote(s: str) -> str:
 def normalise_type(frag):
     # TODO: this is very bad, we should use schema-salad for this
     # (which would also take care of $import/$include)
+    # Nevertheless, this is actually more capable than schema-salad --
+    # "File[][]" will work here, but not in cwltool.
     assert frag, "zero-length type not allowed"
     if isinstance(frag, str):
         if frag in {"stdout", "stderr"}:
