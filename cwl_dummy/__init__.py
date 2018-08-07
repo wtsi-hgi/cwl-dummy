@@ -7,9 +7,11 @@ import sys
 import textwrap
 import traceback
 # noinspection PyUnresolvedReferences
-from typing import MutableMapping, MutableSequence, Any, overload, TypeVar, List
+from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar, overload
 
 import ruamel.yaml
+
+from cwl_dummy.utils import ensure_sequence_form, mapping_to_sequence
 
 
 T = TypeVar("T")
@@ -80,10 +82,7 @@ def mock_document(cwl):
 def mock_workflow(cwl):
     assert cwl["class"] == "Workflow"
     assert all(x in cwl for x in {"inputs", "outputs", "steps"})
-    # Convert mapping form to sequence form
-    if isinstance(cwl["steps"], MutableMapping):
-        cwl["steps"] = [{"id": k, **v} for k, v in cwl["steps"].items()]
-    assert isinstance(cwl["steps"], MutableSequence)
+    cwl["steps"] = ensure_sequence_form(cwl["steps"])
 
     for step in cwl["steps"]:
         if isinstance(step["run"], str):
@@ -103,51 +102,37 @@ def mock_workflow(cwl):
     return cwl
 
 
+SAFE_REQUIREMENTS = {
+    "InlineJavascriptRequirement", "SchemaDefRequirement", "InitialWorkDirRequirement", "ResourceRequirement"
+}
+
+
 def mock_command_line_tool(cwl):
     assert cwl["class"] == "CommandLineTool"
     assert all(x in cwl for x in {"inputs", "outputs"})
     if any(x in cwl for x in {"stdin", "stdout", "stderr"}):
         raise UnhandledCwlError("Cannot handle stdin/stdout/stderr references automatically")
     cwl["baseCommand"] = ["sh", "-c"]
+    for x in {"requirements", "hints"} & cwl.keys():
+        seq = ensure_sequence_form(cwl[x], key_key="class")
+        cwl[x] = [
+            req for req in seq if req["class"] in SAFE_REQUIREMENTS
+        ]
+        for req in seq:
+            if ":" in req["class"] or "#" in req["class"]:
+                print(f">>> Warning: unknown requirement/hint {req['class']!r} <<<")
 
-    # Convert mapping form:
-    #
-    #   inputs:
-    #     my_input:
-    #       doc: "an input"
-    #
-    # to sequence form:
-    #
-    #   inputs:
-    #   - id: my_input
-    #     doc: "an input"
-    #
-    # TODO: this can fail if the value is just a type
-    # i.e. in the form: map<CommandOutputParameter.id, CommandOutputParameter.type>
-    # which is allowed by the CWL spec
-    #
-    #   outputs:
-    #     my_output: string
-    if isinstance(cwl["inputs"], MutableMapping):
-        cwl["inputs"] = [{"id": k, **v} for k, v in cwl["inputs"].items()]
-    assert isinstance(cwl["inputs"], MutableSequence)
-    if isinstance(cwl["outputs"], MutableMapping):
-        cwl["outputs"] = [{"id": k, **v} for k, v in cwl["outputs"].items()]
-    assert isinstance(cwl["outputs"], MutableSequence)
-
-    for input in cwl["inputs"]:
-        if "inputBinding" in input:
-            input.pop("inputBinding")
+    cwl["inputs"] = ensure_sequence_form(cwl["inputs"])
+    cwl["outputs"] = ensure_sequence_form(cwl["outputs"])
 
     output_files = []
     output_dirs = []
-    for output in cwl["outputs"]:
-        typ = normalise_type(output["type"])
+    for output in ensure_sequence_form(cwl["outputs"]):
         try:
             output_binding = output["outputBinding"]
         except KeyError:
             raise UnhandledCwlError("CommandLineTool has output without outputBinding (does it use cwl.output.json?)") from None
-        if typ == "File" or isinstance(type, dict) and typ.get("items") == "File":
+        if type_contains(output["type"], "File"):
             if "secondaryFiles" in output:
                 secondary_files = ensure_list(output["secondaryFiles"])
                 # FIXME: this is not correct!
@@ -155,7 +140,7 @@ def mock_command_line_tool(cwl):
             if "glob" in output_binding:
                 # FIXME: globs can contain glob characters
                 output_files.extend(ensure_list(output_binding["glob"]))
-        elif typ == "Directory":
+        elif type_contains(output["type"], "Directory"):
             if "glob" in output_binding:
                 # FIXME: globs can contain glob characters
                 output_dirs.extend(ensure_list(output_binding["glob"]))
@@ -207,6 +192,35 @@ def mock_command_line_tool(cwl):
     return cwl
 
 
+def type_contains(typ, needle):
+    """(haystack, needle) -> bool
+
+    NOTE: this is unlikely to work if the type you're searching for is
+    anything but one of the simple CWL types (int, File, ...).
+    """
+    if isinstance(typ, str):
+        if typ.endswith("?"):
+            return needle == "null" or type_contains(typ[:-1], needle)
+        if typ.endswith("[]"):
+            return type_contains({"type": "array", "items": typ[:-2]}, needle)
+        return isinstance(needle, str) and needle == typ
+    assert isinstance(typ, dict)
+    if typ["type"] == "array":
+        assert "items" in typ
+        if isinstance(typ["items"], str):
+            return type_contains(typ["items"], needle)
+        return any(type_contains(item, needle) for item in typ["items"])
+    if typ["type"] == "record":
+        return any(
+            type_contains(field["type"], needle) for field in (
+                typ["fields"] if isinstance(typ["fields"], list) else typ["fields"].values()
+            )
+        )
+    if typ["type"] == "enum":
+        return needle.get("type") == "enum" and set(needle["symbols"]) == set(typ["symbols"])
+    raise TypeError(f"Invalid (or unknown) type: {typ!r}")
+
+
 def attempt_to_quote(s: str) -> str:
     """Try to quote a string for use in `arguments`."""
     if "$(" not in s and "${" not in s:
@@ -217,8 +231,9 @@ def attempt_to_quote(s: str) -> str:
 
 
 def normalise_type(frag):
+    assert False, "do not use this function"
     # TODO: this is very bad, we should use schema-salad for this
-    # (which would also take care of $import/$include)
+    # (which would also take care of $import)
     # Nevertheless, this is actually more capable than schema-salad --
     # "File[][]" will work here, but not in cwltool.
     assert frag, "zero-length type not allowed"
@@ -245,7 +260,13 @@ def normalise_type(frag):
     assert isinstance(frag, MutableMapping)
     if "inputBinding" in frag:
         frag.pop("inputBinding")
-    return frag  # TODO: handle stuff like enums
+    # Recurse over arrays
+    if "items" in frag:
+        frag["items"] = [normalise_type(t) for t in frag["items"]]
+    # Recurse over records
+    if "fields" in frag:
+        frag["fields"] = [normalise_type(t) for t in frag["fields"]]
+    return frag
 
 
 @overload
