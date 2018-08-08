@@ -38,7 +38,7 @@ from cwl_dummy.utils import (
 
 
 class Arguments:
-    filename: List[str]
+    filenames: List[str]
     force: bool
     force_broken: bool
 
@@ -49,14 +49,14 @@ args: Arguments
 def main():
     global args
     parser = argparse.ArgumentParser()
-    parser.add_argument("filename", nargs="+", help="a Workflow or CommandLineTool to mock")
+    parser.add_argument("filenames", nargs="+", metavar="filename", help="a Workflow or CommandLineTool to mock")
     parser.add_argument("-f", "--force", action="store_true", help="write processed files even if they already exist")
     # Avoid overwriting files that have been fixed by hand.
     parser.add_argument("--force-broken", action="store_true", help="write unhandled files even if they already exist")
     # The typeshed signature for parse_args currently does not account
     # for custom namespaces, so we have to cast to get typechecking.
     args = cast(Arguments, parser.parse_args(namespace=Arguments()))
-    for filename in args.filename:
+    for filename in args.filenames:
         mock_file(filename)
 
 
