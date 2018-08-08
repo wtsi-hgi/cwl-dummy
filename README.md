@@ -1,5 +1,19 @@
 # cwl-dummy
 
+Generates CWL files that do nothing.
+
+## Usage
+
+Install via Pip:
+
+```
+python3.6 -m venv venv
+source venv/bin/activate
+pip install -e git+https://github.com/wtsi-hgi/cwl-dummy#egg=cwl_dummy
+```
+
+then run `cwl-dummy -h` for usage instructions.
+
 ## License
 
 Copyright (C) 2018 Genome Research Ltd.
