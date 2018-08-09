@@ -1,0 +1,49 @@
+cwlVersion: v1.0
+class: CommandLineTool
+requirements:
+- class: InlineJavascriptRequirement
+baseCommand:
+- sh
+- -c
+- |
+  sleep 10
+  mode=pre
+  for arg in "$@"; do
+      if [ "$mode" = pre ]; then
+          if [ "$arg" = cwl-dummy-mode-switch ]; then
+              mode=dir
+          fi
+      elif [ "$mode" = dir ]; then
+          if [ "$arg" = cwl-dummy-mode-switch ]; then
+              mode=file
+          else
+              mkdir -p -- "$arg"
+          fi
+      elif [ "$mode" = file ]; then
+          if [ "$arg" = cwl-dummy-mode-switch ]; then
+              mode=post
+          else
+              touch -- "$arg"
+          fi
+      fi
+  done
+- cwl_dummy_runner
+inputs:
+- id: tool_input
+  type: string
+  inputBinding:
+    position: 1
+outputs:
+- id: tool_output
+  type: File
+  outputBinding:
+    glob: $(inputs.tool_input)
+- id: string_output
+  type: string
+  outputBinding:
+    outputEval: ${return "abc"}
+arguments:
+- cwl-dummy-mode-switch
+- cwl-dummy-mode-switch
+- $(inputs.tool_input)
+- cwl-dummy-mode-switch
