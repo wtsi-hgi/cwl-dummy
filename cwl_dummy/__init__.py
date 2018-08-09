@@ -156,7 +156,7 @@ def mock_command_line_tool(cwl):
         try:
             output_binding = output["outputBinding"]
         except KeyError:
-            raise UnhandledCwlError("CommandLineTool has output without outputBinding (does it use cwl.output.json?)") from None
+            raise UnhandledCwlError("CommandLineTool has output without outputBinding (does it use cwl.output.json?)")
         if output_binding.get("loadContents", False):
             print(">>> Warning: output file contents may be checked <<<")
         if "glob" in output_binding:
