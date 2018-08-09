@@ -5,7 +5,7 @@ inputs:
     type: string
 steps:
   step_one:
-    run: example-tool.cwl
+    run: tool.cwl
     in:
       tool_input: filename
     out: [tool_output]
