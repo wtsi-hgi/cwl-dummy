@@ -253,6 +253,8 @@ def type_contains(typ, needle):
     NOTE: this is unlikely to work if the type you're searching for is
     anything but one of the simple CWL types (int, File, ...).
     """
+    if typ == needle:
+        return True
     if isinstance(typ, str):
         if typ.endswith("?"):
             return needle == "null" or type_contains(typ[:-1], needle)

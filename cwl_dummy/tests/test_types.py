@@ -28,8 +28,14 @@ from cwl_dummy import type_contains
 CWL_TYPES = ["Any", "null", "boolean", "int", "long", "float", "double", "string", "File", "Directory"]
 
 
+def test_type_contains():
+    assert type_contains("int[]", {"type": "array", "items": "int"})
+    assert type_contains("int?", "null")
+    assert type_contains({"type": "array", "items": "int?"}, "null")
+
+
 @pytest.mark.parametrize("typ", CWL_TYPES)
-def test_type_contains(typ):
+def test_type_contains_param(typ):
     assert type_contains(typ, typ)
     assert type_contains(f"{typ}?", typ)
     assert type_contains(f"{typ}[]", typ)
@@ -40,3 +46,4 @@ def test_type_contains(typ):
     assert not type_contains(f"{typ}[]?", "a")
     assert type_contains({"type": "array", "items": typ}, typ)
     assert not type_contains({"type": "array", "items": typ}, "a")
+
