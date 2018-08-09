@@ -42,7 +42,7 @@ from cwl_dummy.utils import (
 
 
 class Arguments:
-    filenames: List[str]
+    filenames: List[pathlib.Path]
     force: bool
     force_broken: bool
     diff: bool
@@ -54,7 +54,7 @@ args: Arguments
 def main():
     global args
     parser = argparse.ArgumentParser()
-    parser.add_argument("filenames", nargs="+", metavar="filename", help="a Workflow or CommandLineTool to mock")
+    parser.add_argument("filenames", nargs="+", metavar="filename", type=pathlib.Path, help="a Workflow or CommandLineTool to mock")
     parser.add_argument("-f", "--force", action="store_true", help="write processed files even if they already exist")
     # Avoid overwriting files that have been fixed by hand.
     parser.add_argument("--force-broken", action="store_true", help="write unhandled files even if they already exist")
@@ -66,7 +66,7 @@ def main():
         mock_file(filename)
 
 
-def mock_file(filename: str) -> None:
+def mock_file(filename: pathlib.Path) -> None:
     print(f"Mocking file: {filename}")
 
     with open(filename, "r") as f:
@@ -77,7 +77,7 @@ def mock_file(filename: str) -> None:
 
     top_comment = ""
     try:
-        cwl = mock_document(cwl)
+        cwl = mock_document(cwl, filename.parent)
     except UnhandledCwlError as e:
         err_str = format_error(e, filename)
         print(err_str)
@@ -85,43 +85,43 @@ def mock_file(filename: str) -> None:
         # Since most things mutate `cwl` in-place, we can carry on and
         # write the file to make it easier to fix it by hand.
 
-    outfilename = filename + ".dummy"
-    if args.diff and pathlib.Path(outfilename).exists():
-        with open(outfilename, "r") as f:
+    outfile = filename.with_suffix(filename.suffix + ".dummy")
+    if args.diff and outfile.exists():
+        with open(outfile, "r") as f:
             existing_lines = f.readlines()
         # Get the new CWL as a list of strings.
         new_file = io.StringIO()
         ruamel.yaml.round_trip_dump(cwl, new_file, default_flow_style=False)
         new_file.seek(0)
         new_lines = new_file.readlines()
-        existing_time = datetime.datetime.fromtimestamp(os.path.getmtime(outfilename), tz=datetime.timezone.utc)
+        existing_time = datetime.datetime.fromtimestamp(os.path.getmtime(outfile), tz=datetime.timezone.utc)
         new_time = datetime.datetime.now(tz=datetime.timezone.utc)
         # If there's no difference, this won't print anything.
         print("".join(difflib.unified_diff(
             existing_lines,
             new_lines,
-            fromfile=f"existing/{outfilename}",
-            tofile=f"modified/{outfilename}",
+            fromfile=f"existing/{outfile}",
+            tofile=f"modified/{outfile}",
             fromfiledate=existing_time.isoformat(),
             tofiledate=new_time.isoformat(timespec="microseconds" if existing_time.microsecond else "seconds"),
         )), end="")
-    if top_comment and pathlib.Path(outfilename).exists() and not args.force_broken:
-        print(f"Not writing file because it already exists and could not be processed: {outfilename}")
-    elif pathlib.Path(outfilename).exists() and not args.force:
-        print(f"Not writing file because it already exists: {outfilename}")
+    if top_comment and outfile.exists() and not args.force_broken:
+        print(f"Not writing file because it already exists and could not be processed: {outfile}")
+    elif outfile.exists() and not args.force:
+        print(f"Not writing file because it already exists: {outfile}")
     else:
-        with open(outfilename, "w") as f:
+        with open(outfile, "w") as f:
             if top_comment:
                 f.write(top_comment + "\n")
             ruamel.yaml.round_trip_dump(cwl, f, default_flow_style=False)
-        print(f"Wrote mocked file: {outfilename}")
+        print(f"Wrote mocked file: {outfile}")
 
 
-def mock_document(cwl):
+def mock_document(cwl, directory: pathlib.Path):
     assert isinstance(cwl, MutableMapping)  # was an if, but why wouldn't it be?
     cls = cwl.get("class")
     if cls == "Workflow":
-        cwl = mock_workflow(cwl)
+        cwl = mock_workflow(cwl, directory)
     elif cls == "CommandLineTool":
         cwl = mock_command_line_tool(cwl)
     elif cls == "ExpressionTool":
@@ -131,7 +131,7 @@ def mock_document(cwl):
     return cwl
 
 
-def mock_workflow(cwl):
+def mock_workflow(cwl, directory: pathlib.Path):
     assert cwl["class"] == "Workflow"
     assert all(x in cwl for x in {"inputs", "outputs", "steps"})
     for x in {"requirements", "hints"} & cwl.keys():
@@ -144,12 +144,12 @@ def mock_workflow(cwl):
             # NB: CWL workflows are not allowed to refer to themselves
             # (even indirectly), so we don't need to keep track of which
             # files we've seen.
-            mock_file(step["run"])
+            mock_file(directory / pathlib.Path(step["run"]))
             step["run"] += ".dummy"
         else:
             # probably a nested CWL document
             try:
-                step["run"] = mock_document(step["run"])
+                step["run"] = mock_document(step["run"], directory)
             except UnhandledCwlError as e:
                 raise UnhandledCwlError(f"Unhandled workflow step with id {step['id']}") from e
 
