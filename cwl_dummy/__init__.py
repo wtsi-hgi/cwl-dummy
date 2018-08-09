@@ -109,6 +109,8 @@ def mock_document(cwl):
 def mock_workflow(cwl):
     assert cwl["class"] == "Workflow"
     assert all(x in cwl for x in {"inputs", "outputs", "steps"})
+    for x in {"requirements", "hints"} & cwl.keys():
+        cwl[x] = filter_requirements(ensure_sequence_form(cwl[x], key_key="class"), kind=x[:-1])
     cwl["steps"] = ensure_sequence_form(cwl["steps"])
 
     for step in cwl["steps"]:
