@@ -9,7 +9,7 @@ Install via Pip:
 ```
 python3.6 -m venv venv
 source venv/bin/activate
-pip install -e git+https://github.com/wtsi-hgi/cwl-dummy#egg=cwl_dummy
+pip install git+https://github.com/wtsi-hgi/cwl-dummy#egg=cwl_dummy
 ```
 
 then run `cwl-dummy -h` for usage instructions.
