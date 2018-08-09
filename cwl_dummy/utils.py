@@ -110,6 +110,14 @@ def ensure_list(x: T) -> List[T]:
     return [x]
 
 
+def format_warning(w: str) -> str:
+    return f">>> Warning: {w} <<<"
+
+
+def warn(w: str) -> None:
+    print(format_warning(w))
+
+
 def format_error(e, filename) -> str:
     lines = [
         "=" * 32 + " Unhandled CWL " + "=" * 32,

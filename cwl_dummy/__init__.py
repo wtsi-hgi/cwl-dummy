@@ -37,7 +37,7 @@ import ruamel.yaml.scalarstring
 
 from cwl_dummy.utils import (
     UnhandledCwlError, ensure_list, ensure_sequence_form, format_error, mapping_to_sequence,
-    strip_references
+    strip_references, warn
 )
 
 
@@ -118,14 +118,14 @@ def mock_file(filename: pathlib.Path) -> None:
 
 
 def mock_document(cwl, directory: pathlib.Path):
-    assert isinstance(cwl, MutableMapping)  # was an if, but why wouldn't it be?
+    assert isinstance(cwl, MutableMapping)  # Guard against implicit $graph
     cls = cwl.get("class")
     if cls == "Workflow":
         cwl = mock_workflow(cwl, directory)
     elif cls == "CommandLineTool":
         cwl = mock_command_line_tool(cwl)
     elif cls == "ExpressionTool":
-        print(">>> Warning: ignoring ExpressionTool <<<")
+        warn("ignoring ExpressionTool")
     else:
         raise UnhandledCwlError(f"Unknown document class {cls!r}")
     return cwl
@@ -183,13 +183,13 @@ def mock_command_line_tool(cwl):
         except KeyError:
             raise UnhandledCwlError("CommandLineTool has output without outputBinding (does it use cwl.output.json?)")
         if output_binding.get("loadContents", False):
-            print(">>> Warning: output file contents may be checked <<<")
+            warn("output file contents may be checked")
         if "glob" in output_binding:
             globs = ensure_list(output_binding["glob"])
             for glob in (strip_references(g) for g in globs):
                 if any(c in glob for c in "*?["):
                     # "may" because JS expressions aren't removed.
-                    print(">>> Warning: glob may contain glob characters <<<")
+                    warn("glob may contain glob characters")
             # FIXME: globs can contain glob characters
             for i, glob in enumerate(globs):
                 globs[i] = glob.replace("*", "s").replace("?", "q")
@@ -197,7 +197,7 @@ def mock_command_line_tool(cwl):
                 output_dirs.extend(globs)
             else:
                 if not type_contains(output["type"], "File"):
-                    print(">>> Warning: glob found, but output type does not allow globs <<<")
+                    warn("glob found, but output type does not allow globs")
                 output_files.extend(globs)
 
     # This uses the following behaviour described in the CWL spec:
@@ -267,7 +267,7 @@ def filter_requirements(requirements: Sequence[Mapping[str, Any]], kind="require
     for r in requirements:
         if r["class"] not in REMOVE_REQUIREMENTS:
             if r["class"] not in ALL_REQUIREMENTS:
-                print(f">>> Warning: unknown {kind} (not removing) {r['class']!r} <<<")
+                warn(f"unknown {kind} (not removing) {r['class']!r}")
             filtered.append(r)
     return filtered
 
