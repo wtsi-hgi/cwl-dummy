@@ -23,6 +23,10 @@
 
 
 import argparse
+import datetime
+import difflib
+import io
+import os.path
 import pathlib
 import sys
 import textwrap
@@ -41,6 +45,7 @@ class Arguments:
     filenames: List[str]
     force: bool
     force_broken: bool
+    diff: bool
 
 
 args: Arguments
@@ -53,6 +58,7 @@ def main():
     parser.add_argument("-f", "--force", action="store_true", help="write processed files even if they already exist")
     # Avoid overwriting files that have been fixed by hand.
     parser.add_argument("--force-broken", action="store_true", help="write unhandled files even if they already exist")
+    parser.add_argument("--diff", action="store_true", help="show a diff for each updated file")
     # The typeshed signature for parse_args currently does not account
     # for custom namespaces, so we have to cast to get typechecking.
     args = cast(Arguments, parser.parse_args(namespace=Arguments()))
@@ -80,6 +86,25 @@ def mock_file(filename: str) -> None:
         # write the file to make it easier to fix it by hand.
 
     outfilename = filename + ".dummy"
+    if args.diff and pathlib.Path(outfilename).exists():
+        with open(outfilename, "r") as f:
+            existing_lines = f.readlines()
+        # Get the new CWL as a list of strings.
+        new_file = io.StringIO()
+        ruamel.yaml.round_trip_dump(cwl, new_file, default_flow_style=False)
+        new_file.seek(0)
+        new_lines = new_file.readlines()
+        existing_time = datetime.datetime.fromtimestamp(os.path.getmtime(outfilename), tz=datetime.timezone.utc)
+        new_time = datetime.datetime.now(tz=datetime.timezone.utc)
+        # If there's no difference, this won't print anything.
+        print("".join(difflib.unified_diff(
+            existing_lines,
+            new_lines,
+            fromfile=f"existing/{outfilename}",
+            tofile=f"modified/{outfilename}",
+            fromfiledate=existing_time.isoformat(),
+            tofiledate=new_time.isoformat(timespec="microseconds" if existing_time.microsecond else "seconds"),
+        )), end="")
     if top_comment and pathlib.Path(outfilename).exists() and not args.force_broken:
         print(f"Not writing file because it already exists and could not be processed: {outfilename}")
     elif pathlib.Path(outfilename).exists() and not args.force:
