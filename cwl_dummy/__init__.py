@@ -27,7 +27,7 @@ import pathlib
 import sys
 import textwrap
 # noinspection PyUnresolvedReferences
-from typing import Any, List, Mapping, MutableMapping, MutableSequence, TypeVar, cast, overload
+from typing import Any, List, Mapping, MutableMapping, MutableSequence, Sequence, TypeVar, cast, overload
 
 import ruamel.yaml.scalarstring
 
@@ -129,11 +129,6 @@ def mock_workflow(cwl):
     return cwl
 
 
-SAFE_REQUIREMENTS = {
-    "InlineJavascriptRequirement", "SchemaDefRequirement", "InitialWorkDirRequirement", "ResourceRequirement"
-}
-
-
 # This must not contain any shell metacharacters (including spaces).
 MODE_SWITCH_FLAG = "cwl-dummy-mode-switch"
 
@@ -142,13 +137,7 @@ def mock_command_line_tool(cwl):
     assert cwl["class"] == "CommandLineTool"
     assert all(x in cwl for x in {"inputs", "outputs"})
     for x in {"requirements", "hints"} & cwl.keys():
-        seq = ensure_sequence_form(cwl[x], key_key="class")
-        for req in seq:
-            if ":" in req["class"] or "#" in req["class"]:
-                print(f">>> Warning: unknown {x[:-1]} {req['class']!r} <<<")
-        cwl[x] = [
-            req for req in seq if req["class"] in SAFE_REQUIREMENTS
-        ]
+        cwl[x] = filter_requirements(ensure_sequence_form(cwl[x], key_key="class"), kind=x[:-1])
     if any(x in cwl for x in {"stdin", "stdout", "stderr"}):
         raise UnhandledCwlError("Cannot handle stdin/stdout/stderr references automatically")
 
@@ -232,6 +221,28 @@ def mock_command_line_tool(cwl):
             raise UnhandledCwlError(f"Leading or trailing characters in field with parameter reference: {arg}")
 
     return cwl
+
+
+REMOVE_REQUIREMENTS = {
+    "DockerRequirement", "SoftwareRequirement", "ShellCommandRequirement",
+}
+
+
+ALL_REQUIREMENTS = REMOVE_REQUIREMENTS | {
+    "InlineJavascriptRequirement", "SchemaDefRequirement", "InitialWorkDirRequirement", "EnvVarRequirement",
+    "ResourceRequirement", "SubworkflowFeatureRequirement", "ScatterFeatureRequirement",
+    "MultipleInputFeatureRequirement", "StepInputExpressionRequirement",
+}
+
+
+def filter_requirements(requirements: Sequence[Mapping[str, Any]], kind="requirement") -> List:
+    filtered = []
+    for r in requirements:
+        if r["class"] not in REMOVE_REQUIREMENTS:
+            if r["class"] not in ALL_REQUIREMENTS:
+                print(f">>> Warning: unknown {kind} (not removing) {r['class']!r} <<<")
+            filtered.append(r)
+    return filtered
 
 
 def type_contains(typ, needle):
