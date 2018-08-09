@@ -28,6 +28,8 @@ import textwrap
 import traceback
 from typing import Any, List, Mapping, Sequence, TypeVar, Union, overload
 
+import crayons
+
 
 T = TypeVar("T")
 K = TypeVar("K")
@@ -115,7 +117,7 @@ def format_warning(w: str) -> str:
 
 
 def warn(w: str) -> None:
-    print(format_warning(w))
+    print(crayons.yellow(format_warning(w)))
 
 
 def format_error(e, filename) -> str:
@@ -139,3 +141,7 @@ def format_error(e, filename) -> str:
         lines.append(textwrap.indent("".join(traceback.format_exception(type(e), e, e.__traceback__)).rstrip(), "    "))
     lines.append("=" * 79)
     return "\n".join(lines)
+
+
+def error(e, filename) -> None:
+    print(crayons.red(format_error(e, filename)))

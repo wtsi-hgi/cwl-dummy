@@ -8,6 +8,7 @@ setup(
     python_requires=">=3.6",
     install_requires=[
         "ruamel.yaml < 0.16",
+        "crayons",
     ],
     entry_points={
         "console_scripts": ["cwl-dummy=cwl_dummy:main"],

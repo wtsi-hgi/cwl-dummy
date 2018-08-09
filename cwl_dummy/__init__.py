@@ -30,14 +30,13 @@ import os.path
 import pathlib
 import sys
 import textwrap
-# noinspection PyUnresolvedReferences
-from typing import Any, List, Mapping, MutableMapping, MutableSequence, Sequence, TypeVar, cast, overload
+from typing import Any, List, Mapping, MutableMapping, Sequence, cast
 
 import ruamel.yaml.scalarstring
 
 from cwl_dummy.utils import (
-    UnhandledCwlError, ensure_list, ensure_sequence_form, format_error, mapping_to_sequence,
-    strip_references, warn
+    UnhandledCwlError, ensure_list, ensure_sequence_form, error, format_error,
+    mapping_to_sequence, strip_references, warn
 )
 
 
@@ -79,9 +78,8 @@ def mock_file(filename: pathlib.Path) -> None:
     try:
         cwl = mock_document(cwl, filename.parent)
     except UnhandledCwlError as e:
-        err_str = format_error(e, filename)
-        print(err_str)
-        top_comment = textwrap.indent(err_str, "# ")
+        error(e, filename)
+        top_comment = textwrap.indent(format_error(e, filename), "# ")
         # Since most things mutate `cwl` in-place, we can carry on and
         # write the file to make it easier to fix it by hand.
 
@@ -91,6 +89,8 @@ def mock_file(filename: pathlib.Path) -> None:
             existing_lines = f.readlines()
         # Get the new CWL as a list of strings.
         new_file = io.StringIO()
+        if top_comment:
+            new_file.write(top_comment + "\n")
         ruamel.yaml.round_trip_dump(cwl, new_file, default_flow_style=False)
         new_file.seek(0)
         new_lines = new_file.readlines()
@@ -267,7 +267,7 @@ def filter_requirements(requirements: Sequence[Mapping[str, Any]], kind="require
     for r in requirements:
         if r["class"] not in REMOVE_REQUIREMENTS:
             if r["class"] not in ALL_REQUIREMENTS:
-                warn(f"unknown {kind} (not removing) {r['class']!r}")
+                warn(f"ignoring unknown {kind} {r['class']!r}")
             filtered.append(r)
     return filtered
 
