@@ -64,7 +64,10 @@ def main():
     # for custom namespaces, so we have to cast to get typechecking.
     args = cast(Arguments, parser.parse_args(namespace=Arguments()))
     for filename in args.filenames:
-        mock_file(filename)
+        try:
+            mock_file(filename)
+        except UnhandledCwlError as e:
+            error(e, filename)
 
 
 def mock_file(filename: pathlib.Path) -> None:
@@ -76,14 +79,16 @@ def mock_file(filename: pathlib.Path) -> None:
     if cwl.get("cwlVersion") != "v1.0":
         raise UnhandledCwlError("Can't process CWL versions other than v1.0")
 
-    top_comment = ""
+    comment = exception = None
     try:
         cwl = mock_document(cwl, filename.parent)
     except UnhandledCwlError as e:
-        error(e, filename)
-        top_comment = textwrap.indent(format_error(e, filename), "# ")
         # Since most things mutate `cwl` in-place, we can carry on and
         # write the file to make it easier to fix it by hand.
+        comment = textwrap.indent(format_error(e, filename), "# ")
+        # Python automatically deletes `e` at the end of the block, so
+        # it has to be assigned to another name to access it later.
+        exception = e
 
     outfile = filename.with_suffix(filename.suffix + ".dummy")
     if args.diff and outfile.exists():
@@ -91,8 +96,8 @@ def mock_file(filename: pathlib.Path) -> None:
             existing_lines = f.readlines()
         # Get the new CWL as a list of strings.
         new_file = io.StringIO()
-        if top_comment:
-            new_file.write(top_comment + "\n")
+        if comment:
+            new_file.write(comment + "\n")
         ruamel.yaml.round_trip_dump(cwl, new_file, default_flow_style=False)
         new_file.seek(0)
         new_lines = new_file.readlines()
@@ -107,16 +112,19 @@ def mock_file(filename: pathlib.Path) -> None:
             fromfiledate=existing_time.isoformat(),
             tofiledate=new_time.isoformat(timespec="microseconds" if existing_time.microsecond else "seconds"),
         )), end="")
-    if top_comment and outfile.exists() and not args.force_broken:
+    if comment and outfile.exists() and not args.force_broken:
         print(f"Not writing file because it already exists and could not be processed: {outfile}")
     elif outfile.exists() and not args.force:
         print(f"Not writing file because it already exists: {outfile}")
     else:
         with open(outfile, "w") as f:
-            if top_comment:
-                f.write(top_comment + "\n")
+            if comment:
+                f.write(comment + "\n")
             ruamel.yaml.round_trip_dump(cwl, f, default_flow_style=False)
         print(f"Wrote mocked file: {outfile}")
+
+    if exception:
+        raise exception
 
 
 def mock_document(cwl, directory: pathlib.Path):
@@ -146,7 +154,11 @@ def mock_workflow(cwl, directory: pathlib.Path):
             # NB: CWL workflows are not allowed to refer to themselves
             # (even indirectly), so we don't need to keep track of which
             # files we've seen.
-            mock_file(directory / pathlib.Path(step["run"]))
+            filename = directory / pathlib.Path(step["run"])
+            try:
+                mock_file(filename)
+            except UnhandledCwlError as e:
+                error(e, filename)
             step["run"] += ".dummy"
         else:
             # probably a nested CWL document
