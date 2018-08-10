@@ -91,18 +91,26 @@ def ensure_sequence_form(mapping_or_sequence: Union[Mapping, Sequence], **kwargs
     return mapping_or_sequence
 
 
+# This is lifted from section 3.4 "Parameter references" of the CWL
+# spec -- although it's represented as a BNF grammar, it doesn't
+# recurse, so it can be written as a regular expression.
+SYMBOL = r" \w+ "  # See common-workflow-language/cwltool#866
+SINGLEQ = r" \[' ( [^'] | \\' )* '\] "
+DOUBLEQ = r' \[" ( [^"] | \\" )* "\] '
+INDEX = r" \[ \d+ \] "
+SEGMENT = rf" (\. {SYMBOL}) | ({SINGLEQ}) | ({DOUBLEQ}) | ({INDEX}) "
+PARAMETER_REFERENCE = rf" \$\( {SYMBOL} ({SEGMENT})* \) "
+PARAMETER_REFERENCE_RE = re.compile(PARAMETER_REFERENCE, flags=re.VERBOSE)
+
+
 def strip_references(s: str) -> str:
     """Remove parameter references from a string.
 
     NOTE: JavaScript expressions are not necessarily removed.
     """
-    # This is lifted from section 3.4 "Parameter references" of the CWL
-    # spec -- although it's represented as a BNF grammar, it doesn't
-    # recurse, so it can be written as a regular expression.
-    #
     # It goes without saying that removing JavaScript expressions would
     # be significantly more complicated.
-    return re.sub(r"""\$\(\w+(\.\w+|\['([^']|\\')*'\]|\["([^"]|\\")*"\]|\[\d+\])*\)""", "", s)
+    return PARAMETER_REFERENCE_RE.sub("", s)
 
 
 @overload
