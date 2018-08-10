@@ -12,7 +12,20 @@ source venv/bin/activate
 pip install git+https://github.com/wtsi-hgi/cwl-dummy
 ```
 
-then run `cwl-dummy -h` for usage instructions.
+Then run cwl-dummy on the tool or workflow you'd like to mock (in the
+case of a workflow, all tools and subworkflows used by the workflow will
+be automatically recursively processed):
+
+```
+cwl-dummy my-workflow.cwl
+```
+
+Fix any errors reported, and check all warnings, then run the
+newly-generated workflow:
+
+```
+cwl-runner my-workflow.cwl.dummy
+```
 
 ## Limitations
 
