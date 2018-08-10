@@ -46,4 +46,3 @@ def test_type_contains_param(typ):
     assert not type_contains(f"{typ}[]?", "a")
     assert type_contains({"type": "array", "items": typ}, typ)
     assert not type_contains({"type": "array", "items": typ}, "a")
-

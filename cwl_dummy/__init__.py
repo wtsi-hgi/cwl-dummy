@@ -53,7 +53,9 @@ args: Arguments
 def main():
     global args
     parser = argparse.ArgumentParser()
-    parser.add_argument("filenames", nargs="+", metavar="filename", type=pathlib.Path, help="a Workflow or CommandLineTool to mock")
+    parser.add_argument(
+        "filenames", nargs="+", metavar="filename", type=pathlib.Path, help="a Workflow or CommandLineTool to mock"
+    )
     parser.add_argument("-f", "--force", action="store_true", help="write processed files even if they already exist")
     # Avoid overwriting files that have been fixed by hand.
     parser.add_argument("--force-broken", action="store_true", help="write unhandled files even if they already exist")
