@@ -35,8 +35,8 @@ from typing import Any, List, Mapping, MutableMapping, Sequence, cast
 import ruamel.yaml.scalarstring
 
 from cwl_dummy.utils import (
-    UnhandledCwlError, ensure_list, ensure_sequence_form, error, format_error,
-    mapping_to_sequence, strip_references, warn
+    UnhandledCwlError, coloured_diff, ensure_list, ensure_sequence_form, error, format_error, mapping_to_sequence,
+    strip_references, warn,
 )
 
 
@@ -104,14 +104,14 @@ def mock_file(filename: pathlib.Path) -> None:
         existing_time = datetime.datetime.fromtimestamp(os.path.getmtime(outfile), tz=datetime.timezone.utc)
         new_time = datetime.datetime.now(tz=datetime.timezone.utc)
         # If there's no difference, this won't print anything.
-        print("".join(difflib.unified_diff(
+        print("".join(coloured_diff(difflib.unified_diff(
             existing_lines,
             new_lines,
             fromfile=f"existing/{outfile}",
             tofile=f"modified/{outfile}",
             fromfiledate=existing_time.isoformat(),
             tofiledate=new_time.isoformat(timespec="microseconds" if existing_time.microsecond else "seconds"),
-        )), end="")
+        ))), end="")
     if comment and outfile.exists() and not args.force_broken:
         print(f"Not writing file because it already exists and could not be processed: {outfile}")
     elif outfile.exists() and not args.force:

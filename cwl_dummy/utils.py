@@ -26,7 +26,7 @@
 import re
 import textwrap
 import traceback
-from typing import Any, List, Mapping, Sequence, TypeVar, Union, overload
+from typing import Any, Iterable, Iterator, List, Mapping, Sequence, TypeVar, Union, overload
 
 import crayons
 
@@ -145,3 +145,17 @@ def format_error(e, filename) -> str:
 
 def error(e, filename) -> None:
     print(crayons.red(format_error(e, filename)))
+
+
+def coloured_diff(diff: Iterable[str]) -> Iterator[str]:
+    # Crayons' special ColoredString doesn't actually inherit from str,
+    # so we have to convert it ourselves.
+    for line in diff:
+        if line.startswith("-"):
+            yield str(crayons.red(line))
+        elif line.startswith("+"):
+            yield str(crayons.green(line))
+        elif line.startswith("@"):
+            yield str(crayons.cyan(line))
+        else:
+            yield line
