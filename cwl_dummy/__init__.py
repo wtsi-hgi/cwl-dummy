@@ -30,7 +30,7 @@ import os.path
 import pathlib
 import sys
 import textwrap
-from typing import Any, List, Mapping, MutableMapping, Sequence, cast
+from typing import Any, List, Mapping, MutableMapping, Sequence, Set, cast
 
 import ruamel.yaml.scalarstring
 
@@ -70,8 +70,16 @@ def main():
             error(e, filename)
 
 
+mocked_files: Set[pathlib.Path] = set()
+
+
 def mock_file(filename: pathlib.Path) -> None:
     """Mock a CWL file, given a path."""
+    global mocked_files
+    if filename in mocked_files:
+        print(f"Already mocked file this run, ignoring: {filename}")
+        return
+    mocked_files.add(filename)
     print(f"Mocking file: {filename}")
 
     with open(filename, "r") as f:
