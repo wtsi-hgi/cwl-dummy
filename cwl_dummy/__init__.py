@@ -71,6 +71,7 @@ def main():
 
 
 def mock_file(filename: pathlib.Path) -> None:
+    """Mock a CWL file, given a path."""
     print(f"Mocking file: {filename}")
 
     with open(filename, "r") as f:
@@ -128,6 +129,7 @@ def mock_file(filename: pathlib.Path) -> None:
 
 
 def mock_document(cwl, directory: pathlib.Path):
+    """Mock a CWL document represented as a Python object."""
     assert isinstance(cwl, MutableMapping)  # Guard against implicit $graph
     cls = cwl.get("class")
     if cls == "Workflow":
@@ -142,6 +144,7 @@ def mock_document(cwl, directory: pathlib.Path):
 
 
 def mock_workflow(cwl, directory: pathlib.Path):
+    """Mock a CWL workflow represented as a Python object."""
     assert cwl["class"] == "Workflow"
     assert all(x in cwl for x in {"inputs", "outputs", "steps"})
     for x in {"requirements", "hints"} & cwl.keys():
@@ -175,6 +178,7 @@ MODE_SWITCH_FLAG = "cwl-dummy-mode-switch"
 
 
 def mock_command_line_tool(cwl):
+    """Mock a CWL command line tool represented as a Python object."""
     assert cwl["class"] == "CommandLineTool"
     assert all(x in cwl for x in {"inputs", "outputs"})
     for x in {"requirements", "hints"} & cwl.keys():
@@ -277,6 +281,10 @@ ALL_REQUIREMENTS = REMOVE_REQUIREMENTS | {
 
 
 def filter_requirements(requirements: Sequence[Mapping[str, Any]], kind="requirement") -> List:
+    """Remove requirements that affect execution of a process.
+
+    Unrecognised requirements are not removed.
+    """
     filtered = []
     for r in requirements:
         if r["class"] not in REMOVE_REQUIREMENTS:

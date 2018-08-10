@@ -36,7 +36,7 @@ K = TypeVar("K")
 
 
 class UnhandledCwlError(Exception):
-    pass
+    """CWL that can't be automatically processed was encountered."""
 
 
 def mapping_to_sequence(
@@ -99,6 +99,9 @@ def strip_references(s: str) -> str:
     # This is lifted from section 3.4 "Parameter references" of the CWL
     # spec -- although it's represented as a BNF grammar, it doesn't
     # recurse, so it can be written as a regular expression.
+    #
+    # It goes without saying that removing JavaScript expressions would
+    # be significantly more complicated.
     return re.sub(r"""\$\(\w+(\.\w+|\['([^']|\\')*'\]|\["([^"]|\\")*"\]|\[\d+\])*\)""", "", s)
 
 
@@ -107,6 +110,7 @@ def ensure_list(x: List[T]) -> List[T]: ...
 
 
 def ensure_list(x: T) -> List[T]:
+    """Ensure the argument is a list."""
     if isinstance(x, list):
         return x
     return [x]
