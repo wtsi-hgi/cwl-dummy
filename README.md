@@ -14,6 +14,12 @@ pip install git+https://github.com/wtsi-hgi/cwl-dummy
 
 then run `cwl-dummy -h` for usage instructions.
 
+## Limitations
+
+cwl-dummy does not use schema-salad to preprocess documents, so it's not
+able to cope with documents that make use of more complex schema-salad
+features (`$graph`, `$import`, `$include`, relative identifiers, etc.).
+
 ## License
 
 Copyright (C) 2018 Genome Research Ltd.
