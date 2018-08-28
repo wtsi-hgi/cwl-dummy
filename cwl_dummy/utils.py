@@ -33,6 +33,7 @@ import crayons
 
 T = TypeVar("T")
 K = TypeVar("K")
+SequenceT = TypeVar("SequenceT", bound=Sequence)
 
 
 class UnhandledCwlError(Exception):
@@ -83,7 +84,15 @@ def mapping_to_sequence(
     ]
 
 
-def ensure_sequence_form(mapping_or_sequence: Union[Mapping, Sequence], **kwargs) -> Sequence:
+@overload
+def ensure_sequence_form(mapping_or_sequence: Mapping, **kwargs) -> List: ...
+
+
+@overload
+def ensure_sequence_form(mapping_or_sequence: SequenceT, **kwargs) -> SequenceT: ...
+
+
+def ensure_sequence_form(mapping_or_sequence, **kwargs):
     """Ensure the argument is in sequence form."""
     if isinstance(mapping_or_sequence, Mapping):
         return mapping_to_sequence(mapping_or_sequence, **kwargs)
@@ -117,7 +126,11 @@ def strip_references(s: str) -> str:
 def ensure_list(x: List[T]) -> List[T]: ...
 
 
-def ensure_list(x: T) -> List[T]:
+@overload
+def ensure_list(x: T) -> List[T]: ...
+
+
+def ensure_list(x):
     """Ensure the argument is a list."""
     if isinstance(x, list):
         return x
