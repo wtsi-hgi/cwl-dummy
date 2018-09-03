@@ -195,7 +195,7 @@ def rewrite_requirements(requirements: MutableSequence[Mapping[str, Any]]) -> Mu
         if r["class"] == "DockerRequirement":
             requirements[i] = {
                 "class": "DockerRequirement",
-                "dockerImageId": "cwl-dummy-tool",
+                "dockerPull": "mercury/cwl-scheduler-tests",
             }
     return requirements
 
