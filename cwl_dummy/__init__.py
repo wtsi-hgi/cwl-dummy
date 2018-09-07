@@ -28,10 +28,9 @@ import difflib
 import io
 import os.path
 import pathlib
-import shlex
 import sys
 import textwrap
-from typing import Any, List, Mapping, MutableMapping, NamedTuple, Sequence, Set, cast
+from typing import Any, List, Mapping, MutableMapping, MutableSequence, Set, cast
 
 import ruamel.yaml.scalarstring
 
@@ -157,9 +156,9 @@ def mock_workflow(cwl, directory: pathlib.Path):
     assert cwl["class"] == "Workflow"
     assert all(x in cwl for x in {"inputs", "outputs", "steps"})
     for x in {"requirements", "hints"} & cwl.keys():
-        cwl[x] = filter_requirements(ensure_sequence_form(cwl[x], key_key="class"), kind=x[:-1])
-    cwl["steps"] = ensure_sequence_form(cwl["steps"])
+        cwl[x] = rewrite_requirements(ensure_sequence_form(cwl[x], key_key="class"))
 
+    cwl["steps"] = ensure_sequence_form(cwl["steps"])
     for step in cwl["steps"]:
         if isinstance(step["run"], str):
             # got a filename -- recurse into it
@@ -182,134 +181,23 @@ def mock_workflow(cwl, directory: pathlib.Path):
     return cwl
 
 
-# This must not contain any shell metacharacters (including spaces).
-MODE_SWITCH_FLAG = "cwl-dummy-mode-switch"
-
-
-class CommandOutput(NamedTuple):
-    glob: str
-    secondary_files: List[str]
-
-
 def mock_command_line_tool(cwl):
     """Mock a CWL command line tool represented as a Python object."""
     assert cwl["class"] == "CommandLineTool"
     assert all(x in cwl for x in {"inputs", "outputs"})
     for x in {"requirements", "hints"} & cwl.keys():
-        cwl[x] = filter_requirements(ensure_sequence_form(cwl[x], key_key="class"), kind=x[:-1])
-    if any(x in cwl for x in {"stdin", "stdout", "stderr"}):
-        raise UnhandledCwlError("Cannot handle stdin/stdout/stderr references automatically")
-
-    cwl["inputs"] = ensure_sequence_form(cwl["inputs"])
-    cwl["outputs"] = ensure_sequence_form(cwl["outputs"])
-
-    output_files: List[CommandOutput] = []
-    output_dirs: List[CommandOutput] = []
-    for output in ensure_sequence_form(cwl["outputs"]):
-        try:
-            output_binding = output["outputBinding"]
-        except KeyError:
-            raise UnhandledCwlError("CommandLineTool has output without outputBinding (does it use cwl.output.json?)")
-
-        if output_binding.get("loadContents", False):
-            warn("output file contents may be checked")
-
-        if "glob" in output_binding:
-            if not type_contains(output["type"], "File"):
-                warn("glob found, but output type does not allow globs")
-            globs = ensure_list(output_binding["glob"])
-            for glob in (strip_references(g) for g in globs):
-                if any(c in glob for c in "*?["):
-                    # "may" because JS expressions aren't removed.
-                    warn("glob may contain glob characters")
-            # FIXME: globs can contain glob characters
-            for i, glob in enumerate(globs):
-                globs[i] = glob.replace("*", "s").replace("?", "q")
-            secondary_files = ensure_list(output.get("secondaryFiles", []))
-            if secondary_files and not type_contains(output["type"], "File"):
-                warn("secondary files found, but output type does not allow secondary files")
-            for glob in globs:
-                command_output = CommandOutput(glob=glob, secondary_files=secondary_files)
-                if type_contains(output["type"], "Directory"):
-                    output_dirs.append(command_output)
-                else:
-                    output_files.append(command_output)
-
-    file_cmds: List[str] = []
-    for output in output_files:
-        if any(s.startswith("^") for s in output.secondary_files):
-            # Globs can be expressions, so we can't statically remove an
-            # extension from them.
-            raise UnhandledCwlError("secondary files with '^' cannot be handled automatically")
-        if any("$(" in s or "${" in s for s in output.secondary_files):
-            raise UnhandledCwlError("secondary file contains expression")
-        extra_files = (f'"$arg"{shlex.quote(s)}' for s in output.secondary_files)
-        file_cmds.append(f'touch -- {" ".join(extra_files)} "$arg"; shift')
-    file_cmd_str: str = "\n".join(file_cmds)
-
-    # This uses the following behaviour described in the CWL spec:
-    #
-    #     If the value of a field has no leading or trailing
-    #     non-whitespace characters around a parameter reference, the
-    #     effective value of the field becomes the value of the
-    #     referenced parameter, preserving the return type.
-    #
-    # In other words, as long as we pass each expression as a separate
-    # argument, the CWL runner will quote them for us (and also expand
-    # them properly if the value is an array).
-    cwl["baseCommand"] = ["sh", "-c", ruamel.yaml.scalarstring.PreservedScalarString(textwrap.dedent(f"""\
-    sleep 10
-    while ! [ "$1" = {MODE_SWITCH_FLAG} ]; do
-        shift
-    done
-    shift
-    while ! [ "$1" = {MODE_SWITCH_FLAG} ]; do
-        mkdir -p -- "$1"
-        shift
-    done
-    shift
-    {textwrap.indent(file_cmd_str, " " * 4).lstrip()}
-    if ! [ "$1" = {MODE_SWITCH_FLAG} ]; then
-        printf 'Extra file argument?\\n'
-    fi
-    """)), "cwl_dummy_runner"]  # This is $0
-    output_dir_globs: List[str] = [o.glob for o in output_dirs]
-    output_file_globs: List[str] = [o.glob for o in output_files]
-    cwl["arguments"] = [MODE_SWITCH_FLAG, *output_dir_globs, MODE_SWITCH_FLAG, *output_file_globs, MODE_SWITCH_FLAG]
-
-    for arg in output_dir_globs + output_file_globs:
-        if arg.count("$") > 1:
-            raise UnhandledCwlError(f"Multiple parameter references in field: {arg}")
-        if "$" in arg and (arg.strip()[0] != "$" or arg.strip()[-1] not in ")}"):
-            raise UnhandledCwlError(f"Leading or trailing characters in field with parameter reference: {arg}")
-
+        cwl[x] = rewrite_requirements(ensure_sequence_form(cwl[x], key_key="class"))
     return cwl
 
 
-REMOVE_REQUIREMENTS = {
-    "DockerRequirement", "SoftwareRequirement", "ShellCommandRequirement",
-}
-
-
-ALL_REQUIREMENTS = REMOVE_REQUIREMENTS | {
-    "InlineJavascriptRequirement", "SchemaDefRequirement", "InitialWorkDirRequirement", "EnvVarRequirement",
-    "ResourceRequirement", "SubworkflowFeatureRequirement", "ScatterFeatureRequirement",
-    "MultipleInputFeatureRequirement", "StepInputExpressionRequirement",
-}
-
-
-def filter_requirements(requirements: Sequence[Mapping[str, Any]], kind="requirement") -> List:
-    """Remove requirements that affect execution of a process.
-
-    Unrecognised requirements are not removed.
-    """
-    filtered = []
-    for r in requirements:
-        if r["class"] not in REMOVE_REQUIREMENTS:
-            if r["class"] not in ALL_REQUIREMENTS:
-                warn(f"ignoring unknown {kind} {r['class']!r}")
-            filtered.append(r)
-    return filtered
+def rewrite_requirements(requirements: MutableSequence[Mapping[str, Any]]) -> MutableSequence:
+    for i, r in enumerate(requirements):
+        if r["class"] == "DockerRequirement":
+            requirements[i] = {
+                "class": "DockerRequirement",
+                "dockerPull": "mercury/cwl-scheduler-tests",
+            }
+    return requirements
 
 
 def type_contains(typ, needle):
