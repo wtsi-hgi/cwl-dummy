@@ -1,6 +1,8 @@
 # cwl-dummy
 
-Generates CWL files that do nothing.
+Generates CWL files that use [cwl-dummy-tool][] to do nothing.
+
+[cwl-dummy-tool]: https://github.com/wtsi-hgi/cwl-scheduler-tests
 
 ## Usage
 
